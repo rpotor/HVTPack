@@ -1,0 +1,88 @@
+﻿ACTIONFILE V4
+
+ENABLED True
+
+INSTALL LongDescription="Just a little addon for voice notification of high value exploration targets. When you honk a system which is fully mapped on EDSM, the addon will tell you this and also check and tell you how many high value bodies are there in the system. If the system is not fully mapped on EDSM, then the addon will alert you when you scan a high value body in FSS, so you can go and DSS it. The following are considered as high value targets: Water Worlds, Earthlike Worlds, Ammonia Worlds, Terraformable High Metal Content Bodies and Terraformable Rocky Bodies."
+INSTALL ShortDescription="HVT notifier for Exploration"
+INSTALL Version=1.0.0.0
+INSTALL MinEDVersion=11.4.0.0
+INSTALL Location=Actions
+
+EVENT Scan, HVTNotifier, "", Condition AlwaysTrue
+EVENT FSSDiscoveryScan, CheckEDSM, "", Condition AlwaysTrue
+
+//*************************************************************
+// HVTNotifier
+// Events: Scan
+//*************************************************************
+PROGRAM HVTNotifier
+
+If EventClass_PlanetClass $== "Water world" Or EventClass_PlanetClass $== "Earthlike body" Or EventClass_PlanetClass $== "Ammonia world"
+    Event FROM %(EventJID) LAST
+    If %(EC_Class_EventTypeStr) $!= SAAScanComplete
+        Say "High Value Body Found. %(EventClass_PlanetClass), %(EventClass_TerraformState)", Voice="Microsoft Zira Desktop"
+
+If (EventClass_TerraformState $== Terraformable) And (EventClass_PlanetClass $== "High metal content body" Or EventClass_PlanetClass $== "Rocky body")
+    Event FROM %(EventJID) LAST
+    If %(EC_Class_EventTypeStr) $!= SAAScanComplete
+        Say "High Value Body Found. %(EventClass_PlanetClass), %(EventClass_TerraformState)", Voice="Microsoft Zira Desktop"
+
+END PROGRAM
+
+//*************************************************************
+// CheckEDSM
+// Events: FSSDiscoveryScan
+//*************************************************************
+PROGRAM CheckEDSM
+
+// Print Ennyi égitest van a játékban %(EventClass_BodyCount)
+
+Set ittvagyunk = %(EventStarSystem)
+
+Scan EDSM "%(ittvagyunk)"
+
+Let bodydarab = 0
+Let hvtdarab = 0
+Let hvtvalue = 50000
+
+// Print Stars %(S_Stars)
+
+ForEach body in S_Star_*_Planets_Only
+    Let bodydarab = %(bodydarab) + %Expand(%(body))
+
+ForEach body in S_Star_*_value
+    If %Expand(%(body)) > %(hvtvalue)
+        Let hvtdarab = %(hvtdarab) + 1
+
+ForEach body in S_Planet_*_*_Moons_Only
+    Let bodydarab = %(bodydarab) + %Expand(%(body))
+
+ForEach body in S_Planet_*_*_value
+    If %Expand(%(body)) > %(hvtvalue)
+        Let hvtdarab = %(hvtdarab) + 1
+
+ForEach body in S_Moon_*_*_*_Submoons_Only
+    Let bodydarab = %(bodydarab) + %Expand(%(body))
+
+ForEach body in S_Moon_*_*_*_value
+    If %Expand(%(body)) > %(hvtvalue)
+        Let hvtdarab = %(hvtdarab) + 1
+
+ForEach body in S_Submoon_*_*_*_*_value
+    If %Expand(%(body)) > %(hvtvalue)
+        Let hvtdarab = %(hvtdarab) + 1
+
+Let bodydarab = %(bodydarab) + %(S_Stars)
+
+// Print Ennyi égitest van EDSM-en %(bodydarab)
+
+If %(bodydarab) >= %(EventClass_BodyCount)
+    // Yeah, I know, this is strange, but apparently there are systems where EDSM has more bodies than there are actually in-game... For example EDSM says there is a body called S171 12 B 1 A A it even has data on it, but in-game, this body does not exist. I checked, I went there, it is not there. At least as of 22 June 3306. Maybe it will reappear in the future. :-)
+    If %(hvtdarab) == 0
+        Say "System is fully mapped on EDSM. No high value bodies in system, you can move along.", Voice="Microsoft Zira Desktop"
+    Else If %(hvtdarab) == 1
+        Say "System is fully mapped on EDSM. One high value body in system.", Voice="Microsoft Zira Desktop"
+    Else 
+        Say "System is fully mapped on EDSM. %(hvtdarab) high value bodies in system.", Voice="Microsoft Zira Desktop"
+
+END PROGRAM
