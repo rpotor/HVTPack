@@ -4,12 +4,24 @@ ENABLED True
 
 INSTALL LongDescription="Just a little addon for voice notification of high value exploration targets. When you honk a system which is fully mapped on EDSM, the addon will tell you this and also check and tell you how many high value bodies are there in the system. If the system is not fully mapped on EDSM, then the addon will alert you when you scan a high value body in FSS, so you can go and DSS it. The following are considered as high value targets: Water Worlds, Earthlike Worlds, Ammonia Worlds, Terraformable High Metal Content Bodies and Terraformable Rocky Bodies."
 INSTALL ShortDescription="HVT notifier for Exploration"
-INSTALL Version=1.0.0.0
+INSTALL Version=1.1.0.0
 INSTALL MinEDVersion=11.4.0.0
 INSTALL Location=Actions
 
 EVENT Scan, HVTNotifier, "", Condition AlwaysTrue
+EVENT FSDJump, BeugroCsillag, "", Condition AlwaysTrue
 EVENT FSSDiscoveryScan, CheckEDSM, "", Condition AlwaysTrue
+EVENT onNonModalDialog, AblakVez, "", Condition AlwaysTrue
+
+//*************************************************************
+// BeugroCsillag
+// Events: FSDJump
+//*************************************************************
+PROGRAM BeugroCsillag
+
+Static jumpstar = %(EventClass_BodyID)
+
+END PROGRAM
 
 //*************************************************************
 // HVTNotifier
@@ -17,15 +29,50 @@ EVENT FSSDiscoveryScan, CheckEDSM, "", Condition AlwaysTrue
 //*************************************************************
 PROGRAM HVTNotifier
 
+DialogControl D1, Exists
+
+If %(Exists) $== 0
+    Set hvtvar1 = "TB1,TextBox,\"Looking for high value bodies\",10,150,600,400,\"\",1"
+    NonModalDialog D1, "HVTInfo", "650,450", hvtvar
+
 If EventClass_PlanetClass $== "Water world" Or EventClass_PlanetClass $== "Earthlike body" Or EventClass_PlanetClass $== "Ammonia world"
     Event FROM %(EventJID) LAST
     If %(EC_Class_EventTypeStr) $!= SAAScanComplete
         Say "High Value Body Found. %(EventClass_PlanetClass), %(EventClass_TerraformState)", Voice="Microsoft Zira Desktop"
+        Set hvtinfo $= High Value Body Found.
+        Set hvtinfo += %(EventClass_PlanetClass)
+        Set hvtinfo += , %(EventClass_TerraformState)
+        Set hvtinfo += ", %(EventClass_BodyName) || "
+        DialogControl D1, Get TB1
+        If %(DialogResult) $== "Looking for high value bodies" And %Exist(hvtinfo) $== 1
+            DialogControl D1, Set TB1 = "%(hvtinfo)"
+        Else 
+            Set hvtinfo += %(DialogResult)
+            DialogControl D1, Set TB1 = "%(hvtinfo)"
 
 If (EventClass_TerraformState $== Terraformable) And (EventClass_PlanetClass $== "High metal content body" Or EventClass_PlanetClass $== "Rocky body")
     Event FROM %(EventJID) LAST
     If %(EC_Class_EventTypeStr) $!= SAAScanComplete
         Say "High Value Body Found. %(EventClass_PlanetClass), %(EventClass_TerraformState)", Voice="Microsoft Zira Desktop"
+        Set hvtinfo $= High Value Body Found.
+        Set hvtinfo += %(EventClass_PlanetClass)
+        Set hvtinfo += , %(EventClass_TerraformState)
+        Set hvtinfo += ", %(EventClass_BodyName) || "
+        DialogControl D1, Get TB1
+        If %(DialogResult) $== "Looking for high value bodies" And %Exist(hvtinfo) $== 1
+            DialogControl D1, Set TB1 = "%(hvtinfo)"
+        Else 
+            Set hvtinfo += %(DialogResult)
+            DialogControl D1, Set TB1 = "%(hvtinfo)"
+
+If %Exist(jumpstar) $== 1
+    If EventClass_BodyID $== %(jumpstar)
+        If %(EventClass_WasDiscovered) $== 0
+            Static firstdisc = true
+        Else 
+            Static firstdisc = false
+Else 
+    Static firstdisc = false
 
 END PROGRAM
 
@@ -37,13 +84,24 @@ PROGRAM CheckEDSM
 
 // Print Ennyi égitest van a játékban %(EventClass_BodyCount)
 
+If %Exist(firstdisc) $== 0
+    Static firstdisc = false
+
 Set ittvagyunk = %(EventStarSystem)
+
+DialogControl D1, Exists
+
+If %(Exists) $== 0
+    Set hvtvar1 = "TB1,TextBox,\"Looking for high value bodies\",10,150,600,400,\"\",1"
+    NonModalDialog D1, "HVTInfo", "650,450", hvtvar
+Else 
+    DialogControl D1, Set TB1 = "Looking for high value bodies"
 
 Scan EDSM "%(ittvagyunk)"
 
 Let bodydarab = 0
 Let hvtdarab = 0
-Let hvtvalue = 50000
+Let hvtvalue = 90000
 
 // Print Stars %(S_Stars)
 
@@ -84,5 +142,21 @@ If %(bodydarab) >= %(EventClass_BodyCount)
         Say "System is fully mapped on EDSM. One high value body in system.", Voice="Microsoft Zira Desktop"
     Else 
         Say "System is fully mapped on EDSM. %(hvtdarab) high value bodies in system.", Voice="Microsoft Zira Desktop"
+Else If %(firstdisc) $== true
+    Say "This is an undiscovered system.", Voice="Microsoft Zira Desktop"
+Else 
+    Say "System is not fully mapped on EDSM but it is already discovered", Voice="Microsoft Zira Desktop"
 
 END PROGRAM
+
+//*************************************************************
+// AblakVez
+// Events: onNonModalDialog
+//*************************************************************
+PROGRAM AblakVez
+
+If %(Control) $== Cancel
+    DialogControl D1, Close
+
+END PROGRAM
+
